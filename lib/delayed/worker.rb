@@ -170,12 +170,12 @@ module Delayed
         Timeout.timeout(self.class.max_run_time.to_i) { 
           job.invoke_job 
           now = Time.now
-          update_attribute(:first_started_at, now) if first_started_at.nil?
-          update_attribute(:last_started_at, now)
+          job.update_attribute(:first_started_at, now) if job.first_started_at.nil?
+          job.update_attribute(:last_started_at, now)
         }
         #job.destroy
       end
-      destroy_successful_jobs ? destroy : update_attribute(:finished_at, Time.now)
+      destroy_successful_jobs ? job.destroy : job.update_attribute(:finished_at, Time.now)
       say "#{job.name} completed after %.4f" % runtime
       return true  # did work
     rescue DeserializationError => error
