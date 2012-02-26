@@ -25,6 +25,12 @@ module Delayed
     cattr_accessor :destroy_failed_jobs
     self.destroy_failed_jobs = true
 
+    # By default successful jobs are destroyed after finished.
+    # If you want to keep them around (for statistics/monitoring),
+    # set this to false.
+    cattr_accessor :destroy_successful_jobs
+    self.destroy_successful_jobs = true
+
     self.logger = if defined?(Rails)
       Rails.logger
     elsif defined?(RAILS_DEFAULT_LOGGER)
@@ -161,9 +167,15 @@ module Delayed
 
     def run(job)
       runtime =  Benchmark.realtime do
-        Timeout.timeout(self.class.max_run_time.to_i) { job.invoke_job }
-        job.destroy
+        Timeout.timeout(self.class.max_run_time.to_i) { 
+          job.invoke_job 
+          now = Time.now
+          update_attribute(:first_started_at, now) if first_started_at.nil?
+          update_attribute(:last_started_at, now)
+        }
+        #job.destroy
       end
+      destroy_successful_jobs ? destroy : update_attribute(:finished_at, Time.now)
       say "#{job.name} completed after %.4f" % runtime
       return true  # did work
     rescue DeserializationError => error
