@@ -1,9 +1,11 @@
-$:.unshift(File.dirname(__FILE__) + '/../lib')
+unless ENV['CI']
+  require 'simplecov'
+  SimpleCov.start
+end
 
 require 'bundler/setup'
 require 'logger'
 
-require 'rails'
 require 'action_mailer'
 require 'active_support/dependencies'
 require 'active_record'
@@ -42,4 +44,10 @@ class Story < ActiveRecord::Base
   default_scope where(:scoped => true)
 
   handle_asynchronously :whatever
+end
+
+RSpec.configure do |config|
+  config.after(:each) do
+    Delayed::Worker.reset
+  end
 end
