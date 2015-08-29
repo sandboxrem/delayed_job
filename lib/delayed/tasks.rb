@@ -1,7 +1,8 @@
 namespace :jobs do
   desc 'Clear the delayed_job queue.'
   task :clear => :environment do
-    Delayed::Job.delete_all
+    #Delayed::Job.delete_all
+    Delayed::Job.delete_all('failed_at IS NOT NULL')
   end
 
   desc 'Start a delayed_job worker.'

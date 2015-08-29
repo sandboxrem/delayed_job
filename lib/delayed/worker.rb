@@ -20,7 +20,7 @@ module Delayed
     cattr_accessor :min_priority, :max_priority, :max_attempts, :max_run_time,
                    :default_priority, :sleep_delay, :logger, :delay_jobs, :queues,
                    :read_ahead, :plugins, :destroy_failed_jobs, :exit_on_complete,
-                   :default_log_level
+                   :default_log_level, :destroy_successful_jobs
 
     # Named queue into which jobs are enqueued by default
     cattr_accessor :default_queue_name
@@ -50,6 +50,11 @@ module Delayed
     # By default failed jobs are destroyed after too many attempts. If you want to keep them around
     # (perhaps to inspect the reason for the failure), set this to false.
     self.destroy_failed_jobs = true
+
+    # By default successful jobs are destroyed after finished.
+    # If you want to keep them around (for statistics/monitoring),
+    # set this to false.
+    self.destroy_successful_jobs = true
 
     # By default, Signals INT and TERM set @exit, and the worker exits upon completion of the current job.
     # If you would prefer to raise a SignalException and exit immediately you can use this.
@@ -220,9 +225,15 @@ module Delayed
     def run(job)
       job_say job, 'RUNNING'
       runtime =  Benchmark.realtime do
-        Timeout.timeout(max_run_time(job).to_i, WorkerTimeout) { job.invoke_job }
-        job.destroy
+        Timeout.timeout(max_run_time(job).to_i, WorkerTimeout) {
+          job.invoke_job
+          now = Time.now
+          job.update_attribute(:first_started_at, now) if job.first_started_at.nil?
+          job.update_attribute(:last_started_at, now)
+        }
+        #job.destroy
       end
+      destroy_successful_jobs ? job.destroy : job.update_attribute(:finished_at, Time.now)
       job_say job, format('COMPLETED after %.4f', runtime)
       return true  # did work
     rescue DeserializationError => error
